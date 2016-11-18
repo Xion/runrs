@@ -4,3 +4,9 @@ version = "0.1.0"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 
 [dependencies]
+lazy_static = "*"
+log = "*"
+slog = "*"
+slog-stdlog = "*"
+slog-term = "*"
+# TODO: pin deps to specific versions
