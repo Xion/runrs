@@ -5,8 +5,7 @@ authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 
 [dependencies]
 lazy_static = "*"
-log = "*"
-slog = "*"
-slog-stdlog = "*"
+slog = { version = "*", features = ["max_level_trace", "release_max_level_trace"] }
+slog-scope = "*"
 slog-term = "*"
 # TODO: pin deps to specific versions
