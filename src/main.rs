@@ -10,6 +10,7 @@
 
 use std::env;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::exit;
 
@@ -47,6 +48,7 @@ fn main() {
     let ref script = args[0];
 
     ensure_app_dir();
+    ensure_workspace();
 
     info!("Running script"; "path" => *script);
 
@@ -61,7 +63,7 @@ fn main() {
     // via a single Cargo.lock
 }
 
-/// Ensure that application directory exists.
+/// Ensure that the application directory exists.
 fn ensure_app_dir() {
     if APP_DIR.exists() {
         trace!("Application directory exists, skipping creation";
@@ -76,6 +78,43 @@ fn ensure_app_dir() {
         exit(72);  // EX_OSFILE
     });
     debug!("Application directory created"; "app_dir" => APP_DIR.display().to_string());
+}
+
+/// Ensure that the root Cargo workspace exists.
+///
+/// All the scripts being executed are crates under that workspace
+/// and share the same Cargo.lock. This prevents from rebuiding shared dependencies
+/// repeatedly, thus massively speeding up the execution of scripts.
+fn ensure_workspace() {
+    let cargo_toml = WORKSPACE_DIR.join("Cargo.toml");
+    if cargo_toml.exists() {
+        trace!("Script workspace exists, skipping creation";
+            "dir" => WORKSPACE_DIR.display().to_string());
+        return;
+    }
+
+    if WORKSPACE_DIR.exists() {
+        warn!("Script workspace directory found without Cargo.toml inside";
+            "dir" => WORKSPACE_DIR.display().to_string());
+    } else {
+        fs::create_dir_all(&*WORKSPACE_DIR).unwrap_or_else(|err| {
+            error!("Failed to create script workspace directory";
+                "dir" => WORKSPACE_DIR.display().to_string(), "error" => format!("{}", err));
+            exit(72);  // EX_OSFILE
+        });
+    }
+
+    let mut cargo_toml_fp = fs::OpenOptions::new()
+        .write(true).create_new(true)
+        .open(cargo_toml.clone()).unwrap_or_else(|err| {
+            error!("Failed to open Cargo.toml of script workspace";
+                "path" => cargo_toml.display().to_string(), "error" => format!("{}", err));
+            exit(72);  // EX_OSFILE
+        });
+
+    // This is the only thing necerssary to define the workspace.
+    // Cargo itself should handle everything else.
+    writeln!(&mut cargo_toml_fp, "[workspace]").unwrap();
 }
 
 
