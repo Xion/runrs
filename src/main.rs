@@ -9,6 +9,7 @@
 
 
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::process::exit;
 
@@ -45,6 +46,8 @@ fn main() {
     }
     let ref script = args[0];
 
+    ensure_app_dir();
+
     info!("Running script"; "path" => *script);
 
     // TODO:
@@ -56,6 +59,23 @@ fn main() {
     // 5. cd && cargo run
     // The [workspace] thingie will allow for reusing compiled dependencies
     // via a single Cargo.lock
+}
+
+/// Ensure that application directory exists.
+fn ensure_app_dir() {
+    if APP_DIR.exists() {
+        trace!("Application directory exists, skipping creation";
+            "app_dir" => APP_DIR.display().to_string());
+        return;
+    }
+
+    trace!("Creating application directory"; "app_dir" => APP_DIR.display().to_string());
+    fs::create_dir_all(&*APP_DIR).unwrap_or_else(|err| {
+        error!("Failled to create application directory";
+            "app_dir" => APP_DIR.display().to_string(), "error" => format!("{}", err));
+        exit(72);  // EX_OSFILE
+    });
+    debug!("Application directory created"; "app_dir" => APP_DIR.display().to_string());
 }
 
 
