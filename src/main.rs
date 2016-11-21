@@ -2,6 +2,7 @@
 //! runst -- Runner for Rust "scripts"
 //!
 
+             extern crate crypto;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate slog;
 #[macro_use] extern crate slog_scope;
@@ -9,10 +10,13 @@
 
 
 use std::env;
-use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::exit;
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, exit};
+
+use crypto::digest::Digest;
+use crypto::sha1::Sha1;
 
 
 lazy_static! {
@@ -51,6 +55,10 @@ fn main() {
     ensure_workspace();
 
     info!("Running script"; "path" => *script);
+    let script_crate_dir = ensure_script_crate(script);
+
+    // TODO: script arguments
+    cargo_run(script_crate_dir);
 
     // TODO:
     // 1. create a directory for the cargo [workspace] if it doesn't exist
@@ -115,6 +123,122 @@ fn ensure_workspace() {
     // This is the only thing necerssary to define the workspace.
     // Cargo itself should handle everything else.
     writeln!(&mut cargo_toml_fp, "[workspace]").unwrap();
+}
+
+/// Ensure that a crate for given Rust script exists within the workspace.
+/// Returns the path to the crate's directory.
+fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
+    let path = path.as_ref();
+
+    // TODO: if there is a shebang in the script (like #!/usr/bin/runst), exclude
+    // it from SHA-ing and do not carry it over when copying the script file to
+    // its crate
+    let sha_hex = sha1_file(path).unwrap_or_else(|err| {
+        error!("Failed to compute SHA of the script";
+            "path" => path.display().to_string(), "error" => format!("{}", err));
+        exit(72);  // EX_OSFILE
+    }).result_str();
+
+    // TODO: shard by 2-char prefix, like Git blobs
+    let crate_dir = WORKSPACE_DIR.join(sha_hex.clone());
+    let cargo_toml = crate_dir.join("Cargo.toml");
+    if cargo_toml.exists() {
+        trace!("Script crate already exists, skipping creation";
+            "script" => path.display().to_string(), "sha" => sha_hex);
+        return crate_dir;
+    }
+
+    if crate_dir.exists() {
+        warn!("Script crate directory found without Cargo.toml inside";
+            "dir" => crate_dir.display().to_string());
+    } else {
+        // Run `cargo new --bin $SCRIPT_SHA` in the workspace directory.
+        let package_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or(&sha_hex);
+        let mut cargo_cmd = Command::new("cargo");
+        cargo_cmd.arg("new")
+            .current_dir(WORKSPACE_DIR.clone())
+            .arg("--bin")
+            .args(&["--vcs", "none"])
+            .args(&["--name", package_name])
+            // TODO: only colorize if stdin is a tty
+            .args(&["--color", "always"]);
+        let cargo_proc = cargo_cmd.spawn().unwrap_or_else(|err| {
+            error!("Failed to run cargo";
+                "cmd" => format!("{:?}", cargo_cmd), "error" => format!("{}", err));
+            exit(2);
+        });
+
+        let output = cargo_proc.wait_with_output().unwrap();
+        if !output.status.success() {
+            error!("cargo returned an error";
+                "cmd" => format!("{:?}", cargo_cmd), "status" => format!("{}", output.status));
+            io::stderr().write(&output.stderr).unwrap();
+            exit(2);
+        }
+    }
+
+    // Copy the script into the crate's directory as its main.rs.
+    // TODO: remove any shebangs
+    let main_rs = crate_dir.join("src").join("main.rs");
+    fs::copy(path, main_rs.clone()).unwrap_or_else(|err| {
+        error!("Failed to copy the script into crate src/";
+            "script" => path.display().to_string(), "target" => main_rs.display().to_string(),
+            "error" => format!("{}", err));
+       exit(72);  // EX_OSFILE
+    });
+
+    crate_dir
+}
+
+/// Compute SHA1 hash of the contents of given file.
+fn sha1_file<P: AsRef<Path>>(path: P) -> io::Result<Sha1> {
+    let path = path.as_ref();
+    let mut file = try!(File::open(path));
+    let mut sha = Sha1::new();
+
+    // TODO: feed the file contents to the hasher gradually rather than all at once,
+    // to handle files of ludicrous sizes
+    let mut contents = Vec::new();
+    let size = try!(file.read_to_end(&mut contents));
+    sha.input(&contents);
+
+    trace!("SHA1 of a file";
+        "path" => path.display().to_string(), "size" => size, "sha" => sha.result_str());
+    Ok(sha)
+}
+
+/// Execute `cargo run` within given directory.
+/// Regardless whether or not it succceeds, this function does not return.
+fn cargo_run<P: AsRef<Path>>(path: P) -> ! {
+    let path = path.as_ref();
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run").current_dir(path.clone());
+
+    trace!("About to `cargo run`";
+        "dir" => path.display().to_string(), "cmd" => format!("{:?}", cmd));
+
+    // On Unix, we can replace the app's process completely with Cargo
+    // but on Windows, we have to run its as a child process and wait for it.
+    if cfg!(unix) {
+        use std::os::unix::process::CommandExt;
+
+        // This calls execvp() and doesn't return unless an error occurred.
+        let error = cmd.exec();
+        debug!("`cargo run` failed";
+            "dir" => path.display().to_string(), "error" => format!("{}", error));
+
+        panic!("Failed to execute the script: {}", error);
+    } else {
+        let mut run = cmd.spawn()
+            .unwrap_or_else(|e| panic!("Failed to execute the script: {}", e));
+
+        // Propagate the same exit code that Cargo -- and conversely, the script -- returned.
+        let exit_status = run.wait().unwrap_or_else(|e| {
+            panic!("Failed to obtain status code for the script: {}", e)
+        });
+        let exit_code = exit_status.code().unwrap_or(75);  // EX_TEMPFAIL
+        exit(exit_code);
+    }
 }
 
 
