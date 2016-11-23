@@ -7,6 +7,7 @@
 #[macro_use] extern crate slog;
 #[macro_use] extern crate slog_scope;
              extern crate slog_term;
+             extern crate toml;
 
 
 use std::env;
@@ -120,9 +121,9 @@ fn ensure_workspace() {
             exit(72);  // EX_OSFILE
         });
 
-    // This is the only thing necerssary to define the workspace.
-    // Cargo itself should handle everything else.
-    writeln!(&mut cargo_toml_fp, "[workspace]").unwrap();
+    // This initial content of Cargo.toml will be modified whenever a new script crate is added,
+    // by adding the crate's relative path (SHA) to [workspace.members].
+    writeln!(&mut cargo_toml_fp, "[workspace]\nmembers = []").unwrap();
 }
 
 /// Ensure that a crate for given Rust script exists within the workspace.
@@ -152,24 +153,28 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
         warn!("Script crate directory found without Cargo.toml inside";
             "dir" => crate_dir.display().to_string());
     } else {
+        debug!("Initializing the script crate";
+            "script" => path.display().to_string(), "sha" => sha_hex);
+
         // Run `cargo new --bin $SCRIPT_SHA` in the workspace directory.
         let package_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or(&sha_hex);
         let mut cargo_cmd = Command::new("cargo");
         cargo_cmd.arg("new")
-            .current_dir(WORKSPACE_DIR.clone())
             .arg("--bin")
             .args(&["--vcs", "none"])
             .args(&["--name", package_name])
             // TODO: only colorize if stdin is a tty
             .args(&["--color", "always"])
+            .current_dir(WORKSPACE_DIR.clone())
             .arg(&sha_hex);
+
+        trace!("Running `cargo new` for the script crate";
+            "sha" => sha_hex, "cmd" => format!("{:?}", cargo_cmd));
         let cargo_proc = cargo_cmd.spawn().unwrap_or_else(|err| {
             error!("Failed to run cargo";
                 "cmd" => format!("{:?}", cargo_cmd), "error" => format!("{}", err));
             exit(2);
         });
-        // TODO: add dependencies based on `extern crate` declarations
-
         let output = cargo_proc.wait_with_output().unwrap();
         if !output.status.success() {
             error!("cargo returned an error";
@@ -177,11 +182,42 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
             io::stderr().write(&output.stderr).unwrap();
             exit(2);
         }
+
+        // Add the new script crate path to [workspace.members] of the root Cargo.toml.
+        // Since this root is "virtual" (i.e. doesn't correspond to any crate on its own),
+        // this is the only way to define the workspace.
+        trace!("Fixing root Cargo.toml to point to script crate";
+            "crate_dir" => crate_dir.display().to_string());
+        {
+            let root_cargo_toml = WORKSPACE_DIR.join("Cargo.toml");
+            let mut fp = File::open(&root_cargo_toml).unwrap();
+            let mut content = String::new();
+            fp.read_to_string(&mut content).unwrap();
+
+            let mut root: toml::Value = content.parse().unwrap();
+            {
+                let ws_members = root.lookup_mut("workspace.members").unwrap();
+                let mut ws_members_vec: Vec<_> = ws_members.as_slice().unwrap().to_owned();
+                ws_members_vec.push(toml::Value::String(sha_hex.clone()));
+                *ws_members = toml::Value::Array(ws_members_vec);
+                // TODO: prevent duplicates
+            }
+
+            let mut fp = fs::OpenOptions::new().write(true).open(&root_cargo_toml).unwrap();
+            write!(&mut fp, "{}", toml::encode_str(&root)).unwrap();
+        }
+
+        // TODO: add dependencies based on `extern crate` declarations
+
+        debug!("Script crate initialized successfully";
+            "script" => path.display().to_string(), "sha" => sha_hex);
     }
 
     // Copy the script into the crate's directory as its main.rs.
     // TODO: remove any shebangs
     let main_rs = crate_dir.join("src").join("main.rs");
+    trace!("Copying script as src/main.rs";
+        "from" => path.display().to_string(), "to" => main_rs.display().to_string());
     fs::copy(path, main_rs.clone()).unwrap_or_else(|err| {
         error!("Failed to copy the script into crate src/";
             "script" => path.display().to_string(), "target" => main_rs.display().to_string(),

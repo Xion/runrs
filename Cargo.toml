@@ -9,6 +9,7 @@ rust-crypto = "0.2.36"
 slog = { version = "*", features = ["max_level_trace", "release_max_level_trace"] }
 slog-scope = "*"
 slog-term = "*"
+toml = "0.2.1"
 # TODO: pin all deps to specific versions
 
 [profile.release]
