@@ -161,12 +161,14 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
             .args(&["--vcs", "none"])
             .args(&["--name", package_name])
             // TODO: only colorize if stdin is a tty
-            .args(&["--color", "always"]);
+            .args(&["--color", "always"])
+            .arg(&sha_hex);
         let cargo_proc = cargo_cmd.spawn().unwrap_or_else(|err| {
             error!("Failed to run cargo";
                 "cmd" => format!("{:?}", cargo_cmd), "error" => format!("{}", err));
             exit(2);
         });
+        // TODO: add dependencies based on `extern crate` declarations
 
         let output = cargo_proc.wait_with_output().unwrap();
         if !output.status.success() {
