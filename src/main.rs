@@ -1,5 +1,5 @@
 //!
-//! runst -- Runner for Rust "scripts"
+//! runrs -- Runner for Rust "scripts"
 //!
 
              extern crate crypto;
@@ -28,7 +28,7 @@ lazy_static! {
 lazy_static! {
     /// Main application's directory.
     static ref APP_DIR: PathBuf =
-        env::home_dir().unwrap_or_else(|| env::temp_dir()).join(".runst");
+        env::home_dir().unwrap_or_else(|| env::temp_dir()).join(".runrs");
     // TODO: use the app_dirs crate to get this in a more portable way
 
     /// Directory where the Cargo workspace is located.
@@ -42,7 +42,7 @@ lazy_static! {
 fn main() {
     // TODO: parse command line flags, including logging verbosity
     logging::init();
-    debug!("Initializing runst"; "version" => VERSION.unwrap_or("UNKNOWN"));
+    debug!("Initializing runrs"; "version" => VERSION.unwrap_or("UNKNOWN"));
 
     let args: Vec<String> = env::args().skip(1).collect();
     trace!("Parsing command line arguments"; "args" => format!("{:?}", args));
@@ -131,7 +131,7 @@ fn ensure_workspace() {
 fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
     let path = path.as_ref();
 
-    // TODO: if there is a shebang in the script (like #!/usr/bin/runst), exclude
+    // TODO: if there is a shebang in the script (like #!/usr/bin/runrs), exclude
     // it from SHA-ing and do not carry it over when copying the script file to
     // its crate
     let sha_hex = sha1_file(path).unwrap_or_else(|err| {
@@ -254,7 +254,8 @@ fn sha1_file<P: AsRef<Path>>(path: P) -> io::Result<Sha1> {
 fn cargo_run<P: AsRef<Path>>(path: P) -> ! {
     let path = path.as_ref();
     let mut cmd = Command::new("cargo");
-    cmd.arg("run").current_dir(path.clone());
+    cmd.current_dir(path.clone())
+        .arg("run").arg("--quiet");
 
     trace!("About to `cargo run`";
         "dir" => path.display().to_string(), "cmd" => format!("{:?}", cmd));
