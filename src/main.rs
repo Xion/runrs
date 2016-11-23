@@ -60,16 +60,6 @@ fn main() {
 
     // TODO: script arguments
     cargo_run(script_crate_dir);
-
-    // TODO:
-    // 1. create a directory for the cargo [workspace] if it doesn't exist
-    // 2. hash the file contents (minus hashbang) and put it under there
-    //    (possibly in sharded subdirs like Git does with blobs)
-    // 3. generate the boilerplate Cargo.toml and put along with input .rs
-    // 4. add the new crate to [workspace] in root Cargo.toml
-    // 5. cd && cargo run
-    // The [workspace] thingie will allow for reusing compiled dependencies
-    // via a single Cargo.lock
 }
 
 /// Ensure that the application directory exists.
