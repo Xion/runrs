@@ -156,7 +156,35 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
         debug!("Initializing the script crate";
             "script" => path.display().to_string(), "sha" => sha_hex);
 
-        // Run `cargo new --bin $SCRIPT_SHA` in the workspace directory.
+        // Add the new script crate path to [workspace.members] of the root Cargo.toml.
+        // Since this root is "virtual" (i.e. doesn't correspond to any crate on its own),
+        // this is the only way to define the workspace.
+        //
+        // Note that we do this before actually creating the script crate via `cargo new`
+        // because it prevents Cargo from emitting a warning about workspace misconfiguration.
+        trace!("Fixing root Cargo.toml to point to the script crate";
+            "crate_dir" => crate_dir.display().to_string());
+        {
+            let root_cargo_toml = WORKSPACE_DIR.join("Cargo.toml");
+            let mut fp = File::open(&root_cargo_toml).unwrap();
+            let mut content = String::new();
+            fp.read_to_string(&mut content).unwrap();
+
+            let mut root: toml::Value = content.parse().unwrap();
+            {
+                let ws_members = root.lookup_mut("workspace.members").unwrap();
+                let mut ws_members_vec: Vec<_> = ws_members.as_slice().unwrap().to_owned();
+                ws_members_vec.push(toml::Value::String(sha_hex.clone()));
+                *ws_members = toml::Value::Array(ws_members_vec);
+                // TODO: prevent duplicates
+            }
+
+            let mut fp = fs::OpenOptions::new().write(true).open(&root_cargo_toml).unwrap();
+            write!(&mut fp, "{}", toml::encode_str(&root)).unwrap();
+        }
+
+        // Run `cargo new --bin $SCRIPT_SHA` in the workspace directory
+        // to actually create the script crate.
         let package_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or(&sha_hex);
         let mut cargo_cmd = Command::new("cargo");
         cargo_cmd.arg("new")
@@ -183,31 +211,7 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
             exit(2);
         }
 
-        // Add the new script crate path to [workspace.members] of the root Cargo.toml.
-        // Since this root is "virtual" (i.e. doesn't correspond to any crate on its own),
-        // this is the only way to define the workspace.
-        trace!("Fixing root Cargo.toml to point to script crate";
-            "crate_dir" => crate_dir.display().to_string());
-        {
-            let root_cargo_toml = WORKSPACE_DIR.join("Cargo.toml");
-            let mut fp = File::open(&root_cargo_toml).unwrap();
-            let mut content = String::new();
-            fp.read_to_string(&mut content).unwrap();
-
-            let mut root: toml::Value = content.parse().unwrap();
-            {
-                let ws_members = root.lookup_mut("workspace.members").unwrap();
-                let mut ws_members_vec: Vec<_> = ws_members.as_slice().unwrap().to_owned();
-                ws_members_vec.push(toml::Value::String(sha_hex.clone()));
-                *ws_members = toml::Value::Array(ws_members_vec);
-                // TODO: prevent duplicates
-            }
-
-            let mut fp = fs::OpenOptions::new().write(true).open(&root_cargo_toml).unwrap();
-            write!(&mut fp, "{}", toml::encode_str(&root)).unwrap();
-        }
-
-        // TODO: add dependencies based on `extern crate` declarations
+        // TODO: add [dependencies] to script's Cargo.toml based on `extern crate` declarations
 
         debug!("Script crate initialized successfully";
             "script" => path.display().to_string(), "sha" => sha_hex);
