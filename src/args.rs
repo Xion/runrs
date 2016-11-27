@@ -12,14 +12,14 @@ use conv::errors::NoError;
 
 /// Parse command line arguments and return matches' object.
 #[inline]
-pub fn parse() -> Result<Options, clap::Error> {
+pub fn parse() -> Result<Options, ArgsError> {
     parse_from_argv(env::args_os())
 }
 
 /// Parse application options from given array of arguments
 /// (*all* arguments, including binary name).
 #[inline]
-pub fn parse_from_argv<I, T>(argv: I) -> Result<Options, clap::Error>
+pub fn parse_from_argv<I, T>(argv: I) -> Result<Options, ArgsError>
     where I: IntoIterator<Item=T>, T: Clone + Into<OsString>
 {
     let parser = create_parser();
@@ -71,6 +71,10 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         })
     }
 }
+
+
+// Error that can occur while parsing command line arguments.
+pub type ArgsError = clap::Error;
 
 
 custom_derive! {

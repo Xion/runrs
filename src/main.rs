@@ -47,25 +47,23 @@ lazy_static! {
 
 
 fn main() {
-    // TODO: parse command line flags, including logging verbosity
+    let opts = args::parse().unwrap_or_else(|e| {
+        write!(&mut io::stderr(), "{}", e).unwrap();  // Error contains the usage string.
+        exit(64);  // EX_USAGE
+    });
+
+    // TODO: pass logging verbosity here
     logging::init();
     debug!("Initializing runrs"; "version" => VERSION.unwrap_or("UNKNOWN"));
-
-    let args: Vec<String> = env::args().skip(1).collect();
-    trace!("Parsing command line arguments"; "args" => format!("{:?}", args));
-    if args.len() == 0 {
-        error!("No script name provided");
-        exit(2);
-    }
-    let ref script = args[0];
 
     ensure_app_dir();
     ensure_workspace();
 
-    info!("Running script"; "path" => *script);
+    let ref script = opts.script;
+    info!("Running script"; "path" => script.display().to_string());
     let script_crate_dir = ensure_script_crate(script);
 
-    // TODO: script arguments
+    // TODO: pass script arguments
     cargo_run(script_crate_dir);
 }
 
