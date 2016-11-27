@@ -2,12 +2,19 @@
 //! runrs -- Runner for Rust "scripts"
 //!
 
+             extern crate clap;
+             extern crate conv;
+#[macro_use] extern crate custom_derive;
              extern crate crypto;
+#[macro_use] extern crate enum_derive;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate slog;
 #[macro_use] extern crate slog_scope;
              extern crate slog_term;
              extern crate toml;
+
+
+mod args;
 
 
 use std::env;
