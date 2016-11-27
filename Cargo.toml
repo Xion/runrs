@@ -1,7 +1,10 @@
 [package]
 name = "runrs"
 version = "0.1.0"
+description = "Runner for Rust scripts"
+homepage = "http://github.com/Xion/runrs"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
+publish = false
 
 [dependencies]
 lazy_static = "*"
