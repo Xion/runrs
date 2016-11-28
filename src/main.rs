@@ -63,8 +63,7 @@ fn main() {
     info!("Running script"; "path" => script.display().to_string());
     let script_crate_dir = ensure_script_crate(script);
 
-    // TODO: pass script arguments
-    cargo_run(script_crate_dir);
+    cargo_run(script_crate_dir, &opts.args);
 }
 
 /// Ensure that the application directory exists.
@@ -246,11 +245,15 @@ fn sha1_file<P: AsRef<Path>>(path: P) -> io::Result<Sha1> {
 
 /// Execute `cargo run` within given directory.
 /// Regardless whether or not it succceeds, this function does not return.
-fn cargo_run<P: AsRef<Path>>(path: P) -> ! {
+fn cargo_run<P: AsRef<Path>>(path: P, args: &[String]) -> ! {
     let path = path.as_ref();
+
     let mut cmd = Command::new("cargo");
     cmd.current_dir(path.clone())
         .arg("run").arg("--quiet");
+    if !args.is_empty() {
+        cmd.arg("--").args(args);
+    }
 
     trace!("About to `cargo run`";
         "dir" => path.display().to_string(), "cmd" => format!("{:?}", cmd));
