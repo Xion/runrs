@@ -18,6 +18,7 @@ mod args;
 mod logging;
 
 
+use std::borrow::Cow;
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -179,19 +180,24 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
 
         // Run `cargo new --bin $SCRIPT_SHA` in the workspace directory
         // to actually create the script crate.
-        let package_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or(&sha_hex);
+        let package_name: Cow<str> = match path.file_stem().and_then(|s| s.to_str()) {
+            // Package name must be unique across the workspace,
+            // so we'll use the SHA in it as well.
+            Some(stem) => Cow::Owned(format!("{}-{}", stem, sha_hex)),
+            None => Cow::Borrowed(&sha_hex),
+        };
         let mut cargo_cmd = Command::new("cargo");
         cargo_cmd.arg("new")
             .arg("--bin")
             .args(&["--vcs", "none"])
-            .args(&["--name", package_name])
+            .args(&["--name", &*package_name])
             // TODO: only colorize if stdin is a tty
             .args(&["--color", "always"])
             .current_dir(WORKSPACE_DIR.clone())
             .arg(&sha_hex);
 
         trace!("Running `cargo new` for the script crate";
-            "sha" => sha_hex, "cmd" => format!("{:?}", cargo_cmd));
+            "sha" => sha_hex, "name" => &*package_name, "cmd" => format!("{:?}", cargo_cmd));
         let cargo_proc = cargo_cmd.spawn().unwrap_or_else(|err| {
             error!("Failed to run cargo";
                 "cmd" => format!("{:?}", cargo_cmd), "error" => format!("{}", err));
