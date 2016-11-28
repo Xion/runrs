@@ -53,8 +53,7 @@ fn main() {
         exit(64);  // EX_USAGE
     });
 
-    // TODO: pass logging verbosity here
-    logging::init();
+    logging::init(opts.verbosity);
     debug!("Initializing runrs"; "version" => VERSION.unwrap_or("UNKNOWN"));
 
     ensure_app_dir();
