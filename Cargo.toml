@@ -12,6 +12,7 @@ conv = "0.3"
 custom_derive = "*"
 enum_derive = "*"
 lazy_static = "*"
+regex = "0.1"
 rust-crypto = "0.2.36"
 slog = { version = "*", features = ["max_level_trace", "release_max_level_trace"] }
 slog-scope = "*"

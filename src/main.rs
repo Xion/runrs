@@ -8,6 +8,7 @@
              extern crate crypto;
 #[macro_use] extern crate enum_derive;
 #[macro_use] extern crate lazy_static;
+             extern crate regex;
 #[macro_use] extern crate slog;
 #[macro_use] extern crate slog_scope;
              extern crate slog_term;
@@ -64,6 +65,7 @@ fn main() {
     info!("Running script"; "path" => script.display().to_string());
     let script_crate_dir = ensure_script_crate(script);
 
+    // TODO: pass the --release flag
     cargo_run(script_crate_dir, &opts.args);
 }
 
@@ -211,7 +213,47 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
             exit(2);
         }
 
-        // TODO: add [dependencies] to script's Cargo.toml based on `extern crate` declarations
+        // Extract the script's dependencies from the `extern crate` declarations
+        // and then add them to [dependencies] of the script's Cargo.toml.
+        lazy_static! {
+            // TODO: this is of course a fragile way to do this; use the `syn` crate
+            // to parse the script into Rust AST and pick the decls from that
+            static ref EXTERN_CRATE_RE: regex::Regex = regex::Regex::new(
+                r"extern\s+crate\s+(?P<name>\w+)\s*;"
+            ).unwrap();
+        }
+        let deps = {
+            // TODO: isn't there a create to read file contents?...
+            // (also, this is not the first time this file is read here)
+            let mut fp = File::open(path).unwrap();
+            let mut content = String::new();
+            fp.read_to_string(&mut content).unwrap();
+            EXTERN_CRATE_RE.captures_iter(&content)
+                .map(|cap| cap.name("name").unwrap().to_owned()).collect::<Vec<_>>()
+        };
+        trace!("Extracted dependencies of the script";
+            "path" => path.display().to_string(), "deps" => format!("{:?}", deps));
+        // TODO: consider a way to specify deps versions (like a comment or something)
+
+        if !deps.is_empty() {
+            let mut fp = File::open(&cargo_toml).unwrap();
+            let mut content = String::new();
+            fp.read_to_string(&mut content).unwrap();
+
+            let mut root: toml::Value = content.parse().unwrap();
+            {
+                // Ain't the toml crate's interface delightful?
+                let deps_value = root.lookup_mut("dependencies").unwrap();
+                let mut deps_map = deps_value.as_table().unwrap().to_owned();
+                for dep in deps {
+                    deps_map.insert(dep, toml::Value::String("*".into()));
+                }
+                *deps_value = toml::Value::Table(deps_map);
+            }
+
+            let mut fp = fs::OpenOptions::new().write(true).open(&cargo_toml).unwrap();
+            write!(&mut fp, "{}", toml::encode_str(&root)).unwrap();
+        }
 
         debug!("Script crate initialized successfully";
             "script" => path.display().to_string(), "sha" => sha_hex);
