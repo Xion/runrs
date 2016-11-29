@@ -31,3 +31,13 @@ This allows them to share their dependencies, avoiding repeated recompilation of
 * For easier [scripting](http://www.chriskrycho.com/2016/using-rust-for-scripting.html) with Rust.
 * Because Haskell has `runghc` and Rust shouldn't be worse.
 * Why not?
+
+## Where to?
+
+This is of course an early prototype and there is clearly a room for improvement:
+
+* handle shebangs correctly
+* handle weird crate name abnormalities
+  (like dash vs. underscore, or stuff like `extern crate crypto;` translating to _rust-crypto_ crate)
+* better interface (e.g. accept Rust code given via stdin)
+* tests!
