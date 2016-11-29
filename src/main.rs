@@ -29,6 +29,8 @@ use std::process::{Command, exit};
 
 use crypto::digest::Digest;
 
+use util::exitcode;
+
 
 lazy_static! {
     /// Application version, as filled out by Cargo.
@@ -52,7 +54,7 @@ lazy_static! {
 fn main() {
     let opts = args::parse().unwrap_or_else(|e| {
         write!(&mut io::stderr(), "{}", e).unwrap();  // Error contains the usage string.
-        exit(64);  // EX_USAGE
+        exit(exitcode::EX_USAGE);
     });
 
     logging::init(opts.verbosity);
@@ -81,7 +83,7 @@ fn ensure_app_dir() {
     fs::create_dir_all(&*APP_DIR).unwrap_or_else(|err| {
         error!("Failled to create application directory";
             "app_dir" => APP_DIR.display().to_string(), "error" => format!("{}", err));
-        exit(72);  // EX_OSFILE
+        exit(exitcode::EX_OSFILE);
     });
     debug!("Application directory created"; "app_dir" => APP_DIR.display().to_string());
 }
@@ -106,7 +108,7 @@ fn ensure_workspace() {
         fs::create_dir_all(&*WORKSPACE_DIR).unwrap_or_else(|err| {
             error!("Failed to create script workspace directory";
                 "dir" => WORKSPACE_DIR.display().to_string(), "error" => format!("{}", err));
-            exit(72);  // EX_OSFILE
+            exit(exitcode::EX_OSFILE);
         });
     }
 
@@ -115,7 +117,7 @@ fn ensure_workspace() {
         .open(cargo_toml.clone()).unwrap_or_else(|err| {
             error!("Failed to open Cargo.toml of script workspace";
                 "path" => cargo_toml.display().to_string(), "error" => format!("{}", err));
-            exit(72);  // EX_OSFILE
+            exit(exitcode::EX_OSFILE);
         });
 
     // This initial content of Cargo.toml will be modified whenever a new script crate is added,
@@ -134,7 +136,7 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
     let sha_hex = util::sha1_file(path).unwrap_or_else(|err| {
         error!("Failed to compute SHA of the script";
             "path" => path.display().to_string(), "error" => format!("{}", err));
-        exit(72);  // EX_OSFILE
+        exit(exitcode::EX_OSFILE);
     }).result_str();
 
     // TODO: shard by 2-char prefix, like Git blobs
@@ -259,7 +261,7 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
         error!("Failed to copy the script into crate src/";
             "script" => path.display().to_string(), "target" => main_rs.display().to_string(),
             "error" => format!("{}", err));
-       exit(72);  // EX_OSFILE
+       exit(exitcode::EX_OSFILE);
     });
 
     crate_dir
@@ -299,7 +301,7 @@ fn cargo_run<P: AsRef<Path>>(path: P, args: &[String]) -> ! {
         let exit_status = run.wait().unwrap_or_else(|e| {
             panic!("Failed to obtain status code for the script: {}", e)
         });
-        let exit_code = exit_status.code().unwrap_or(75);  // EX_TEMPFAIL
+        let exit_code = exit_status.code().unwrap_or(exitcode::EX_TEMPFAIL);
         exit(exit_code);
     }
 }
