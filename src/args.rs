@@ -9,6 +9,8 @@ use clap::{self, AppSettings, Arg, ArgMatches, ArgSettings};
 use conv::TryFrom;
 use conv::errors::NoError;
 
+use cargo::BuildMode;
+
 
 /// Parse command line arguments and return matches' object.
 #[inline]
@@ -79,23 +81,6 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 
 // Error that can occur while parsing command line arguments.
 pub type ArgsError = clap::Error;
-
-
-custom_derive! {
-    /// Enum describing the build mode for the script.
-    #[derive(Clone, Debug, Eq, PartialEq,
-             IterVariants(BuildModes))]
-    pub enum BuildMode {
-        /// Debug mode.
-        Debug,
-        /// Release mode (with optimizations). Equivalent of --release in Cargo.
-        Release,
-    }
-}
-
-impl Default for BuildMode {
-    fn default() -> Self { BuildMode::Debug }
-}
 
 
 // Parser configuration
