@@ -45,6 +45,8 @@ pub struct Options {
     pub script: PathBuf,
     /// Arguments to the script.
     pub args: Vec<String>,
+    /// Build mode to use (debug vs. release).
+    pub build_mode: BuildMode,
 }
 
 impl<'a> TryFrom<ArgMatches<'a>> for Options {
@@ -62,12 +64,14 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
             .map(|argv| argv.map(|v| v.to_owned()).collect())
             .unwrap_or_else(|| vec![]);
 
-        // TODO: build mode (debug or --release)
+        let build_mode = if matches.is_present(OPT_RELEASE) { BuildMode::Release }
+                         else                               { BuildMode::Debug };
 
         Ok(Options{
             verbosity: verbosity,
             script: PathBuf::from(script),
             args: script_args,
+            build_mode: build_mode,
         })
     }
 }

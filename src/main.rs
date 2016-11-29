@@ -29,6 +29,7 @@ use std::process::{Command, exit};
 
 use crypto::digest::Digest;
 
+use args::BuildMode;
 use util::exitcode;
 
 
@@ -67,8 +68,7 @@ fn main() {
     info!("Running script"; "path" => script.display().to_string());
     let script_crate_dir = ensure_script_crate(script);
 
-    // TODO: pass the --release flag
-    cargo_run(script_crate_dir, &opts.args);
+    cargo_run(script_crate_dir, &opts.args, opts.build_mode);
 }
 
 /// Ensure that the application directory exists.
@@ -269,12 +269,15 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
 
 /// Execute `cargo run` within given directory.
 /// Regardless whether or not it succceeds, this function does not return.
-fn cargo_run<P: AsRef<Path>>(path: P, args: &[String]) -> ! {
+fn cargo_run<P: AsRef<Path>>(path: P, args: &[String], mode: BuildMode) -> ! {
     let path = path.as_ref();
 
     let mut cmd = Command::new("cargo");
     cmd.current_dir(path.clone())
         .arg("run").arg("--quiet");
+    if mode == BuildMode::Release {
+        cmd.arg("--release");
+    }
     if !args.is_empty() {
         cmd.arg("--").args(args);
     }
