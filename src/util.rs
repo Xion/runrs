@@ -14,7 +14,11 @@ pub fn read_text_file<P: AsRef<Path>>(path: P) -> io::Result<String> {
 
     let mut fp = try!(File::open(path));
     let mut content = match fp.metadata() {
-        Ok(metadata) => String::with_capacity(metadata.len() as usize),
+        Ok(metadata) => {
+            trace!("Reading text file";
+                "path" => path.display().to_string(), "size" => metadata.len());
+            String::with_capacity(metadata.len() as usize + 1)
+        },
         Err(err) => {
             warn!("Failed to obtain file size when reading it";
                 "path" => path.display().to_string(), "error" => format!("{}", err));
@@ -30,18 +34,32 @@ pub fn read_text_file<P: AsRef<Path>>(path: P) -> io::Result<String> {
 /// Compute SHA1 hash of the contents of given file.
 pub fn sha1_file<P: AsRef<Path>>(path: P) -> io::Result<Sha1> {
     let path = path.as_ref();
-    let mut file = try!(File::open(path));
-    let mut sha = Sha1::new();
 
-    // TODO: feed the file contents to the hasher gradually rather than all at once,
-    // to handle files of ludicrous sizes
-    let mut contents = Vec::new();
-    let size = try!(file.read_to_end(&mut contents));
-    sha.input(&contents);
+    let mut file = try!(File::open(path));
+    let mut sha = try!(digest(Sha1::new(), &mut file));
 
     trace!("SHA1 of a file";
-        "path" => path.display().to_string(), "size" => size, "sha" => sha.result_str());
+        "path" => path.display().to_string(),
+        "size" => file.metadata().map(|m| m.len().to_string()).unwrap_or("N/A".into()),
+        "sha" => sha.result_str());
     Ok(sha)
+}
+
+/// Compute one of the crypto crate's digest for bytes read from given input.
+/// The input is read until the end.
+fn digest<D: Digest, R: Read>(digest: D, mut input: R) -> io::Result<D> {
+    // TODO: make a PR to rust-crypto to include Default impl for all digests,
+    // so that we can accept it as a generic type argument
+    let mut digest = digest;
+
+    const BUF_SIZE: usize = 256;
+    let mut buf = [0; BUF_SIZE];
+    loop {
+        let c = try!(input.read(&mut buf));
+        digest.input(&buf[0..c]);
+        if c < BUF_SIZE { break }
+    }
+    Ok(digest)
 }
 
 
