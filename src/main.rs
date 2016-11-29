@@ -17,17 +17,17 @@
 
 mod args;
 mod logging;
+mod util;
 
 
 use std::borrow::Cow;
 use std::env;
-use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
 use crypto::digest::Digest;
-use crypto::sha1::Sha1;
 
 
 lazy_static! {
@@ -131,7 +131,7 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
     // TODO: if there is a shebang in the script (like #!/usr/bin/runrs), exclude
     // it from SHA-ing and do not carry it over when copying the script file to
     // its crate
-    let sha_hex = sha1_file(path).unwrap_or_else(|err| {
+    let sha_hex = util::sha1_file(path).unwrap_or_else(|err| {
         error!("Failed to compute SHA of the script";
             "path" => path.display().to_string(), "error" => format!("{}", err));
         exit(72);  // EX_OSFILE
@@ -163,9 +163,7 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
             "crate_dir" => crate_dir.display().to_string());
         {
             let root_cargo_toml = WORKSPACE_DIR.join("Cargo.toml");
-            let mut fp = File::open(&root_cargo_toml).unwrap();
-            let mut content = String::new();
-            fp.read_to_string(&mut content).unwrap();
+            let content = util::read_text_file(&root_cargo_toml).unwrap();
 
             let mut root: toml::Value = content.parse().unwrap();
             {
@@ -223,11 +221,7 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
             ).unwrap();
         }
         let deps = {
-            // TODO: isn't there a create to read file contents?...
-            // (also, this is not the first time this file is read here)
-            let mut fp = File::open(path).unwrap();
-            let mut content = String::new();
-            fp.read_to_string(&mut content).unwrap();
+            let content = util::read_text_file(path).unwrap();
             EXTERN_CRATE_RE.captures_iter(&content)
                 .map(|cap| cap.name("name").unwrap().to_owned()).collect::<Vec<_>>()
         };
@@ -236,10 +230,7 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
         // TODO: consider a way to specify deps versions (like a comment or something)
 
         if !deps.is_empty() {
-            let mut fp = File::open(&cargo_toml).unwrap();
-            let mut content = String::new();
-            fp.read_to_string(&mut content).unwrap();
-
+            let content = util::read_text_file(&cargo_toml).unwrap();
             let mut root: toml::Value = content.parse().unwrap();
             {
                 // Ain't the toml crate's interface delightful?
@@ -272,23 +263,6 @@ fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
     });
 
     crate_dir
-}
-
-/// Compute SHA1 hash of the contents of given file.
-fn sha1_file<P: AsRef<Path>>(path: P) -> io::Result<Sha1> {
-    let path = path.as_ref();
-    let mut file = try!(File::open(path));
-    let mut sha = Sha1::new();
-
-    // TODO: feed the file contents to the hasher gradually rather than all at once,
-    // to handle files of ludicrous sizes
-    let mut contents = Vec::new();
-    let size = try!(file.read_to_end(&mut contents));
-    sha.input(&contents);
-
-    trace!("SHA1 of a file";
-        "path" => path.display().to_string(), "size" => size, "sha" => sha.result_str());
-    Ok(sha)
 }
 
 /// Execute `cargo run` within given directory.
