@@ -7,6 +7,7 @@
 #[macro_use] extern crate custom_derive;
              extern crate crypto;
 #[macro_use] extern crate enum_derive;
+             extern crate isatty;
 #[macro_use] extern crate lazy_static;
              extern crate regex;
 #[macro_use] extern crate slog;

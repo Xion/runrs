@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
 use crypto::digest::Digest;
+use isatty;
 use regex::Regex;
 use toml;
 
@@ -134,8 +135,7 @@ pub fn ensure_script_crate<P: AsRef<Path>>(path: P) -> PathBuf {
             .arg("--bin")
             .args(&["--vcs", "none"])
             .args(&["--name", &*package_name])
-            // TODO: only colorize if stdin is a tty
-            .args(&["--color", "always"])
+            .args(&["--color", if isatty::stderr_isatty() { "always" } else { "never" }])
             .current_dir(WORKSPACE_DIR.clone())
             .arg(&sha_hex);
 

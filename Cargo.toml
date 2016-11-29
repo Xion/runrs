@@ -11,6 +11,7 @@ clap = { version = "2.16.2", features = ["suggestions"] }
 conv = "0.3"
 custom_derive = "*"
 enum_derive = "*"
+isatty = "0.1.1"
 lazy_static = "*"
 regex = "0.1"
 rust-crypto = "0.2.36"

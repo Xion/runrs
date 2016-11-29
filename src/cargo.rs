@@ -23,6 +23,10 @@ impl Default for BuildMode {
 }
 
 
+// TODO: make a Cargo wrapper struct where we can pass common options (in a Builder fashion)
+// before invoking a specific Cargo command
+
+
 /// Execute `cargo run` within given directory.
 /// Regardless whether or not it succceeds, this function does not return.
 pub fn run<P: AsRef<Path>>(path: P, args: &[String], mode: BuildMode) -> ! {
@@ -30,7 +34,7 @@ pub fn run<P: AsRef<Path>>(path: P, args: &[String], mode: BuildMode) -> ! {
 
     let mut cmd = Command::new("cargo");
     cmd.current_dir(path.clone())
-        .arg("run").arg("--quiet");
+        .arg("run").arg("--quiet");  // TODO: don't make it --quiet if -v was passed
     if mode == BuildMode::Release {
         cmd.arg("--release");
     }
