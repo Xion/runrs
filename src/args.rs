@@ -44,6 +44,7 @@ pub struct Options {
     /// If -q has been used instead, this will be negative.
     pub verbosity: isize,
     /// Path to the script to run.
+    // TODO: allow the script source to passed via stdin
     pub script: PathBuf,
     /// Arguments to the script.
     pub args: Vec<String>,
